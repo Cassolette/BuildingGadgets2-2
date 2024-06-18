@@ -158,7 +158,7 @@ public class DestructionGUI extends Screen {
         int z = depth.getValueInt();
         int dim = 16;
 
-        return x <= dim && y <= dim && z <= dim;
+        return x <= 32 && y <= 32 && z <= 16;
     }
 
     private String getSizeString() {
