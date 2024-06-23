@@ -533,10 +533,12 @@ public class BuildingUtils {
             BlockPos blockPos = pos.pos;
             if (!level.mayInteract(player, blockPos.offset(lookingAt)))
                 continue; //Chunk Protection like spawn and FTB Utils
-            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, blockPos.offset(lookingAt).below()), Blocks.AIR.defaultBlockState(), player);
-            MinecraftForge.EVENT_BUS.post(event);
-            if (event.isCanceled())
-                continue; //FTB Chunk Protection, etc
+            BlockEvent.BreakEvent breakEvent = new BlockEvent.BreakEvent(level, blockPos.offset(lookingAt), level.getBlockState(blockPos.offset(lookingAt)), player);
+            MinecraftForge.EVENT_BUS.post(breakEvent);
+            if (breakEvent.isCanceled()) continue;
+            BlockEvent.EntityPlaceEvent placeEvent = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, blockPos.offset(lookingAt).below()), Blocks.AIR.defaultBlockState(), player);
+            MinecraftForge.EVENT_BUS.post(placeEvent);
+            if (placeEvent.isCanceled()) continue; //FTB Chunk Protection, etc
             if (level.getBlockState(blockPos.offset(lookingAt)).equals(pos.state))
                 continue; //No need to replace blocks if they already match!
             if (!GadgetUtils.isValidBlockState(level.getBlockState(blockPos.offset(lookingAt)), level, blockPos))

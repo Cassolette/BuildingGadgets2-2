@@ -169,11 +169,11 @@ public class GadgetCutPaste extends BaseGadget {
 
         BlockPos.betweenClosedStream(area).map(BlockPos::immutable).sorted(Comparator.comparingInt(Vec3i::getY).reversed()).forEach(pos -> {
             if (!level.mayInteract(player, pos))
-                return; //Chunk Protection like spawn and FTB Utils
-            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, pos.below()), Blocks.AIR.defaultBlockState(), player);
+                return; //Chunk Protection like spawn
+            BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(level, pos, level.getBlockState(pos), player);
             MinecraftForge.EVENT_BUS.post(event);
             if (event.isCanceled())
-                return; //FTB Chunk Protection, etc
+                return; //Chunk Protection like FTB Utils
             ServerTickHandler.addToMap(buildUUID, new StatePos(Blocks.AIR.defaultBlockState(), pos), level, GadgetNBT.getRenderTypeByte(gadget), player, false, false, gadget, ServerBuildList.BuildType.CUT, false, BlockPos.ZERO);
         });
         ServerTickHandler.setCutStart(buildUUID, cutStart);

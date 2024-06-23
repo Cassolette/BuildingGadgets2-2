@@ -170,12 +170,13 @@ public class GadgetUtils {
         ArrayList<StatePos> returnList = new ArrayList<>();
         BlockPos.betweenClosedStream(box).map(BlockPos::immutable).forEach(blockPos -> {
             BlockState blockState = level.getBlockState(blockPos);
-            if (!level.mayInteract(player, pos))
-                return; //Chunk Protection like spawn and FTB Utils
-            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, pos.below()), Blocks.AIR.defaultBlockState(), player);
-            MinecraftForge.EVENT_BUS.post(event);
-            if (event.isCanceled())
-                return; //FTB Chunk Protection, etc
+            if (!level.isClientSide) { //Only check these on server side
+                if (!level.mayInteract(player, pos))
+                    return; //Chunk Protection like spawn and FTB Utils
+                BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(level, pos, level.getBlockState(pos), player);
+                MinecraftForge.EVENT_BUS.post(event);
+                if (event.isCanceled()) return;
+            }
             if (blockState.hasBlockEntity() && !GadgetNBT.getSetting(gadget, "affecttiles"))
                 return;
             if (isValidDestroyBlockState(blockState, level, blockPos))
