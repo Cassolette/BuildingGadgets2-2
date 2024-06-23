@@ -24,9 +24,12 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.BlockSnapshot;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
+import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
@@ -482,7 +485,11 @@ public class BuildingUtils {
             if (pos.state.isAir()) continue; //Since we store air now
             BlockPos blockPos = pos.pos;
             if (!level.mayInteract(player, blockPos.offset(lookingAt)))
-                continue; //Chunk Protection like spawn and FTB Utils
+                continue; //Chunk Protection like spawn
+            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, blockPos.offset(lookingAt).below()), Blocks.AIR.defaultBlockState(), player);
+            MinecraftForge.EVENT_BUS.post(event);
+            if (event.isCanceled())
+                continue; //FTB Chunk Protection, etc
             if (!level.getBlockState(blockPos.offset(lookingAt)).canBeReplaced())
                 continue; //Skip this block if it can't be placed (Avoids using energy)
             if (gadget.getItem() instanceof GadgetBuilding && needItems && !pos.state.canSurvive(level, blockPos.offset(lookingAt)))
@@ -526,6 +533,10 @@ public class BuildingUtils {
             BlockPos blockPos = pos.pos;
             if (!level.mayInteract(player, blockPos.offset(lookingAt)))
                 continue; //Chunk Protection like spawn and FTB Utils
+            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, blockPos.offset(lookingAt).below()), Blocks.AIR.defaultBlockState(), player);
+            MinecraftForge.EVENT_BUS.post(event);
+            if (event.isCanceled())
+                continue; //FTB Chunk Protection, etc
             if (level.getBlockState(blockPos.offset(lookingAt)).equals(pos.state))
                 continue; //No need to replace blocks if they already match!
             if (!GadgetUtils.isValidBlockState(level.getBlockState(blockPos.offset(lookingAt)), level, blockPos))

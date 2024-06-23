@@ -13,6 +13,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -22,6 +23,10 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.BlockSnapshot;
+import net.minecraftforge.event.level.BlockEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -165,6 +170,12 @@ public class GadgetUtils {
         ArrayList<StatePos> returnList = new ArrayList<>();
         BlockPos.betweenClosedStream(box).map(BlockPos::immutable).forEach(blockPos -> {
             BlockState blockState = level.getBlockState(blockPos);
+            if (!level.mayInteract(player, pos))
+                return; //Chunk Protection like spawn and FTB Utils
+            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, pos.below()), Blocks.AIR.defaultBlockState(), player);
+            MinecraftForge.EVENT_BUS.post(event);
+            if (event.isCanceled())
+                return; //FTB Chunk Protection, etc
             if (blockState.hasBlockEntity() && !GadgetNBT.getSetting(gadget, "affecttiles"))
                 return;
             if (isValidDestroyBlockState(blockState, level, blockPos))

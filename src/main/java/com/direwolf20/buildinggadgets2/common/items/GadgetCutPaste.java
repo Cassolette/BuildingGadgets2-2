@@ -27,8 +27,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.BlockSnapshot;
+import net.minecraftforge.event.level.BlockEvent;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -164,6 +168,12 @@ public class GadgetCutPaste extends BaseGadget {
         }
 
         BlockPos.betweenClosedStream(area).map(BlockPos::immutable).sorted(Comparator.comparingInt(Vec3i::getY).reversed()).forEach(pos -> {
+            if (!level.mayInteract(player, pos))
+                return; //Chunk Protection like spawn and FTB Utils
+            var event = new BlockEvent.EntityPlaceEvent(BlockSnapshot.create(level.dimension(), level, pos.below()), Blocks.AIR.defaultBlockState(), player);
+            MinecraftForge.EVENT_BUS.post(event);
+            if (event.isCanceled())
+                return; //FTB Chunk Protection, etc
             ServerTickHandler.addToMap(buildUUID, new StatePos(Blocks.AIR.defaultBlockState(), pos), level, GadgetNBT.getRenderTypeByte(gadget), player, false, false, gadget, ServerBuildList.BuildType.CUT, false, BlockPos.ZERO);
         });
         ServerTickHandler.setCutStart(buildUUID, cutStart);
