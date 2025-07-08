@@ -63,10 +63,17 @@ public class VBORenderer {
         return buffer;
     }
 
-    public static void clearBuffers() { //Prevents leaks
+    public static void clearBuffers() { //Prevents leaks - Unused?
         for (Map.Entry<RenderType, VertexBuffer> entry : vertexBuffers.entrySet()) {
             entry.getValue().close();
         }
+    }
+
+    public static void clearByteBuffers() { //Prevents leaks
+        for (Map.Entry<RenderType, DireBufferBuilder> entry : builders.entrySet()) {
+            entry.getValue().clear();
+        }
+        sortStates.clear();
     }
 
     //Start rendering - this is the most expensive part, so we render it, then cache it, and draw it over and over (much cheaper)
@@ -150,6 +157,9 @@ public class VBORenderer {
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         ModelBlockRenderer modelBlockRenderer = dispatcher.getModelRenderer();
         final RandomSource random = RandomSource.create();
+
+        clearByteBuffers();
+
         //Iterate through the state pos cache and start drawing to the VertexBuffers - skip modelRenders(like chests) - include fluids (even though they don't work yet)
         for (StatePos pos : statePosCache.stream().filter(pos -> isModelRender(pos.state) || !pos.state.getFluidState().isEmpty()).toList()) {
             BlockState renderState = fakeRenderingWorld.getBlockStateWithoutReal(pos.pos);
