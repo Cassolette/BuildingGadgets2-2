@@ -2,7 +2,6 @@ package com.direwolf20.buildinggadgets2.common.events;
 
 import com.direwolf20.buildinggadgets2.common.blockentities.RenderBlockBE;
 import com.direwolf20.buildinggadgets2.common.blocks.RenderBlock;
-import com.direwolf20.buildinggadgets2.common.events.ServerBuildList.RetryEntry;
 import com.direwolf20.buildinggadgets2.common.worlddata.BG2Data;
 import com.direwolf20.buildinggadgets2.setup.Registration;
 import com.direwolf20.buildinggadgets2.util.DimBlockPos;
@@ -133,9 +132,9 @@ public class ServerTickHandler {
 
         if (statePosList.isEmpty()) {
             if (!serverBuildList.retryList.isEmpty()) { //We retry the blocks that initially failed canSurvive checks after all other blocks have been placed
-                for (HashMap.Entry<BlockPos, RetryEntry> entry : serverBuildList.retryList.entrySet()) {
+                for (HashMap.Entry<BlockPos, StatePos> entry : serverBuildList.retryList.entrySet()) {
                     BlockPos blockPos = entry.getKey();
-                    StatePos statePos = entry.getValue().statePos;
+                    StatePos statePos = entry.getValue();
                     // for each adjacent block, check if any are RenderBlockBE
                     boolean hasAdjacentRenderBlock = false;
                     for (Direction direction : Direction.values()) {
@@ -181,19 +180,15 @@ public class ServerTickHandler {
 
         if (!blockState.canSurvive(level, blockPos)) {
             //statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
-            serverBuildList.retryList.computeIfAbsent(blockPos, k -> new RetryEntry(statePos));
-            serverBuildList.retryList.computeIfPresent(blockPos, (k, v) -> {
-                v.count++;
-                if (v.count > 1)
-                    return null;
-                return v;
-            });
-
-            LOGGER.warn("[BG2] Block {} at {} failed canSurvive, retry {}", blockState.getBlock().getName(), blockPos, serverBuildList.retryList.get(blockPos) == null ? "exceeded" : serverBuildList.retryList.get(blockPos).count);
-            
+            boolean alreadyRetried = serverBuildList.retryList.containsKey(blockPos);
+            if (alreadyRetried)
+                serverBuildList.retryList.remove(blockPos); //We tried :I
+            else
+                serverBuildList.retryList.put(blockPos, statePos);
+            LOGGER.warn("[BG2] Block {} at {} failed canSurvive (will {})", blockState.getBlock().getName(), blockPos, alreadyRetried ? "not retry" : "retry");
             return;
         }
-        if (serverBuildList.retryList.get)
+        serverBuildList.retryList.remove(blockPos); //No need to retry if the block canSurvive
 
         if (!level.getBlockState(blockPos).canBeReplaced()) return; //Return without placing the block
 

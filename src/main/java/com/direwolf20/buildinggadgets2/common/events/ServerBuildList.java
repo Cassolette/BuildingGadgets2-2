@@ -24,15 +24,6 @@ public class ServerBuildList {
         CUT
     }
 
-    public static class RetryEntry {
-        public final StatePos statePos;
-        public int count = 0;
-
-        public RetryEntry(StatePos statePos) {
-            this.statePos = statePos;
-        }
-    }
-
     public Level level;
     public ArrayList<StatePos> statePosList;
     public ArrayList<TagPos> teData;
@@ -46,7 +37,7 @@ public class ServerBuildList {
     public UUID buildUUID;
     public BuildType buildType;
     public boolean dropContents;
-    public HashMap<BlockPos, RetryEntry> retryList = new HashMap<>();
+    public HashMap<BlockPos, StatePos> retryList = new HashMap<>();
     public BlockPos cutStart = BlockPos.ZERO;
     public BlockPos lookingAt = BlockPos.ZERO;
     public DimBlockPos boundPos;
