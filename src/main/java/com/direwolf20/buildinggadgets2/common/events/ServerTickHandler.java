@@ -10,7 +10,6 @@ import com.direwolf20.buildinggadgets2.util.GadgetUtils;
 import com.direwolf20.buildinggadgets2.util.datatypes.StatePos;
 import com.direwolf20.buildinggadgets2.util.datatypes.TagPos;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -24,9 +23,6 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fluids.FluidStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import net.minecraft.world.level.block.WallSignBlock;
 
 import java.util.*;
 
@@ -34,7 +30,6 @@ import static com.direwolf20.buildinggadgets2.common.items.GadgetCutPaste.custom
 import static com.direwolf20.buildinggadgets2.util.BuildingUtils.*;
 
 public class ServerTickHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ServerTickHandler.class);
 
     public static final HashMap<UUID, ServerBuildList> buildMap = new HashMap<>();
 
@@ -136,9 +131,6 @@ public class ServerTickHandler {
         BlockPos blockPos = statePos.pos.offset(serverBuildList.lookingAt);
         BlockState blockState = statePos.state;
 
-        // LOG: Block info
-        LOGGER.info("[BG2] Attempting to place: {} at {}", blockState.getBlock().getName(), blockPos);
-
         if (!blockState.getFluidState().isEmpty()) {
             FluidState fluidState = blockState.getFluidState();
             if (!fluidState.isEmpty() && fluidState.isSource()) { //This should always be true since we only copy sources
@@ -149,49 +141,30 @@ public class ServerTickHandler {
             }
         }
 
-        boolean canSurvive = blockState.canSurvive(level, blockPos);
-        LOGGER.info("[BG2] canSurvive={} for {} at {}", canSurvive, blockState.getBlock().getName(), blockPos);
-
-        if (!canSurvive) {
-            int retries = serverBuildList.retryCounts.getOrDefault(blockPos, 0);
-            LOGGER.warn("[BG2] Block {} at {} failed canSurvive, retry {}", blockState.getBlock().getName(), blockPos, retries);
-            // Log support block info for wall signs
-            if (blockState.getBlock() instanceof WallSignBlock) {
-                Direction facing = blockState.getValue(WallSignBlock.FACING);
-                BlockPos supportPos = blockPos.relative(facing.getOpposite());
-                BlockState supportState = level.getBlockState(supportPos);
-                LOGGER.warn("[BG2] WallSign support block at {}: {} (isAir={})", supportPos, supportState.getBlock().getName(), supportState.isAir());
-            }
-            if (retries >= 2)
-                return;
-            statePosList.add(statePos); // Retry placing this after all other blocks are placed
-            serverBuildList.retryCounts.put(blockPos, retries + 1);
+        if (!blockState.canSurvive(level, blockPos)) {
+            if (serverBuildList.retryList.contains(blockPos))
+                return; //Don't retry if this is already retried
+            statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
+            serverBuildList.retryList.add(blockPos); //Only retry once!
             return;
         }
 
-        if (!level.getBlockState(blockPos).canBeReplaced()) {
-            LOGGER.warn("[BG2] Block at {} cannot be replaced.", blockPos);
-            return;
-        }
+        if (!level.getBlockState(blockPos).canBeReplaced()) return; //Return without placing the block
 
         List<ItemStack> neededItems = GadgetUtils.getDropsForBlockState((ServerLevel) level, blockPos, blockState, player);
         if (blockState.getFluidState().isEmpty()) { //Check for items
             if (!player.isCreative() && serverBuildList.needItems) {
-                boolean hasItems = removeStacksFromInventory(player, neededItems, true, serverBuildList.boundPos, serverBuildList.getDirection());
-                LOGGER.info("[BG2] removeStacksFromInventory returned {} for {} at {}", hasItems, blockState.getBlock().getName(), blockPos);
-                if (!hasItems)
-                    return;
+                if (!removeStacksFromInventory(player, neededItems, true, serverBuildList.boundPos, serverBuildList.getDirection()))
+                    return; //Return without placing the block
             }
         } else {
             FluidState fluidState = blockState.getFluidState();
             if (!fluidState.isEmpty() && fluidState.isSource()) { //This should always be true since we only copy sources
                 Fluid fluid = fluidState.getType();
-                FluidStack fluidStack = new FluidStack(fluid, 1000);
-                if (!player.isCreative() && serverBuildList.needItems) {
-                    boolean hasFluids = removeFluidStacksFromInventory(player, fluidStack, true, serverBuildList.boundPos, serverBuildList.getDirection());
-                    LOGGER.info("[BG2] removeFluidStacksFromInventory returned {} for {} at {}", hasFluids, blockState.getBlock().getName(), blockPos);
-                    if (!hasFluids)
-                        return;
+                FluidStack fluidStack = new FluidStack(fluid, 1000); //Sources are always 1000, right?
+                if (!player.isCreative() && serverBuildList.needItems) { //Check if player has needed items before using energy -- a real check happens again in ServerTicks
+                    if (!removeFluidStacksFromInventory(player, fluidStack, true, serverBuildList.boundPos, serverBuildList.getDirection()))
+                        return; //Return without placing the block
                 }
             }
         }
@@ -199,10 +172,8 @@ public class ServerTickHandler {
         boolean placed = level.setBlockAndUpdate(blockPos, Registration.RenderBlock.get().defaultBlockState());
         RenderBlockBE be = (RenderBlockBE) level.getBlockEntity(blockPos);
 
-        LOGGER.info("[BG2] setBlockAndUpdate returned {} for {} at {}, be={}", placed, blockState.getBlock().getName(), blockPos, (be != null));
-
         if (!placed || be == null) {
-            LOGGER.error("[BG2] Placement failed for {} at {}", blockState.getBlock().getName(), blockPos);
+            // this can happen when another mod rejects the set block state (fixes #120)
             return;
         }
         if (blockState.getFluidState().isEmpty()) { //Check for items
@@ -233,11 +204,8 @@ public class ServerTickHandler {
 
             CompoundTag compoundTag = serverBuildList.getTagForPos(blockPos); //First check if theres TE data for this block
             if (!compoundTag.isEmpty()) {
-                LOGGER.info("[BG2] Setting TE data for block {} at {} (compoundTag size: {})", blockState.getBlock().getName(), blockPos, compoundTag.size());
                 be.setBlockEntityData(compoundTag);
-                bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData);
-            } else {
-                LOGGER.info("[BG2] No TE data for block {} at {}", blockState.getBlock().getName(), blockPos);
+                bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData); //If the server crashes mid-build you'll maybe dupe blocks but at least not dupe TE data? TODO Improve
             }
         }
     }

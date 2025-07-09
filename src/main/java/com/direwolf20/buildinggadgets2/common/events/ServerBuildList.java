@@ -10,7 +10,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.UUID;
 
@@ -37,13 +36,10 @@ public class ServerBuildList {
     public BuildType buildType;
     public boolean dropContents;
     public ArrayList<BlockPos> retryList = new ArrayList<>();
-    public HashMap<BlockPos, Integer> retryCounts = new HashMap<>();
     public BlockPos cutStart = BlockPos.ZERO;
     public BlockPos lookingAt = BlockPos.ZERO;
     public DimBlockPos boundPos;
     public int direction;
-
-    public SimulatedBuildLevel simulatedLevel;
 
     public ServerBuildList(Level level, ArrayList<StatePos> statePosList, byte renderType, UUID playerUUID, boolean needItems, boolean returnItems, UUID buildUUID, ItemStack gadget, BuildType buildType, boolean dropContents, BlockPos lookingAt, DimBlockPos boundPos, int direction) {
         this.level = level;
@@ -95,11 +91,4 @@ public class ServerBuildList {
         if (direction == -1) return null;
         return Direction.values()[direction];
     }
-
-    /**
-     * Returns a simulated Level which acts as if RenderBlocks were the actual blocks.
-     */
-    // public SimulatedBuildLevel getSimulatedLevel() {
-    //     return simulatedLevel;
-    // }
 }
