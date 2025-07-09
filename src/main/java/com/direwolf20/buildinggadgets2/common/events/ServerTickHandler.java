@@ -2,6 +2,7 @@ package com.direwolf20.buildinggadgets2.common.events;
 
 import com.direwolf20.buildinggadgets2.common.blockentities.RenderBlockBE;
 import com.direwolf20.buildinggadgets2.common.blocks.RenderBlock;
+import com.direwolf20.buildinggadgets2.common.events.ServerBuildList.RetryEntry;
 import com.direwolf20.buildinggadgets2.common.worlddata.BG2Data;
 import com.direwolf20.buildinggadgets2.setup.Registration;
 import com.direwolf20.buildinggadgets2.util.DimBlockPos;
@@ -10,6 +11,7 @@ import com.direwolf20.buildinggadgets2.util.GadgetUtils;
 import com.direwolf20.buildinggadgets2.util.datatypes.StatePos;
 import com.direwolf20.buildinggadgets2.util.datatypes.TagPos;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -26,11 +28,15 @@ import net.minecraftforge.fluids.FluidStack;
 
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static com.direwolf20.buildinggadgets2.common.items.GadgetCutPaste.customCutValidation;
 import static com.direwolf20.buildinggadgets2.util.BuildingUtils.*;
 
 public class ServerTickHandler {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerTickHandler.class);
     public static final HashMap<UUID, ServerBuildList> buildMap = new HashMap<>();
 
     @SubscribeEvent
@@ -103,6 +109,10 @@ public class ServerTickHandler {
             Map.Entry<UUID, ServerBuildList> entry = iterator.next();
             ServerBuildList serverBuildList = entry.getValue();
             if (entry.getValue().statePosList.isEmpty()) {
+                if (!entry.getValue().retryList.isEmpty()) {
+                    LOGGER.info("[BG2] Still has existing build to retry for build UUID: {}, not cleaning up yet.", entry.getKey());
+                    continue;
+                }
                 Player player = event.getServer().getPlayerList().getPlayer(serverBuildList.playerUUID); //We check for the player - if they exist, they finished building - if not they logged off. Remove data from map only if finished building
                 if (serverBuildList.teData != null && !serverBuildList.buildType.equals(ServerBuildList.BuildType.CUT) && player != null) { //If we had teData this was from a cut-Paste, so remove the data from world data if we're not cutting
                     BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(serverBuildList.level.getServer()).overworld());
@@ -111,6 +121,7 @@ public class ServerTickHandler {
                     bg2Data.popUndoList(GadgetNBT.getUUID(serverBuildList.gadget)); //Remove the undo list, which tracks partial placements
                 }
                 iterator.remove();
+                LOGGER.info("[BG2] Stopped building for build UUID: {}", entry.getKey());
             }
         }
     }
@@ -119,6 +130,30 @@ public class ServerTickHandler {
         Level level = serverBuildList.level;
 
         ArrayList<StatePos> statePosList = serverBuildList.statePosList;
+
+        if (statePosList.isEmpty()) {
+            if (!serverBuildList.retryList.isEmpty()) { //We retry the blocks that initially failed canSurvive checks after all other blocks have been placed
+                for (HashMap.Entry<BlockPos, RetryEntry> entry : serverBuildList.retryList.entrySet()) {
+                    BlockPos blockPos = entry.getKey();
+                    StatePos statePos = entry.getValue().statePos;
+                    // for each adjacent block, check if any are RenderBlockBE
+                    boolean hasAdjacentRenderBlock = false;
+                    for (Direction direction : Direction.values()) {
+                        BlockPos adjacentPos = blockPos.relative(direction);
+                        LOGGER.debug("[BG2] Adj block at {}: {}", adjacentPos, level.getBlockState(adjacentPos).getBlock().getName());
+                        if (level.getBlockEntity(adjacentPos) instanceof RenderBlockBE) {
+                            hasAdjacentRenderBlock = true;
+                            break;
+                        }
+                    }
+                    // Retry when none of the adjacent blocks are RenderBlockBE (i.e. has already conveerted to the real block state)
+                    if (!hasAdjacentRenderBlock) {
+                        statePosList.add(statePos);
+                    }
+                }
+            }
+        }
+
         if (statePosList.isEmpty()) return;
         BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(level.getServer()).overworld());
         StatePos statePos = statePosList.remove(0);
@@ -131,6 +166,9 @@ public class ServerTickHandler {
         BlockPos blockPos = statePos.pos.offset(serverBuildList.lookingAt);
         BlockState blockState = statePos.state;
 
+        // LOG: Block info
+        LOGGER.info("[BG2] Attempting to place: {} at {}", blockState.getBlock().getName(), blockPos);
+
         if (!blockState.getFluidState().isEmpty()) {
             FluidState fluidState = blockState.getFluidState();
             if (!fluidState.isEmpty() && fluidState.isSource()) { //This should always be true since we only copy sources
@@ -142,12 +180,20 @@ public class ServerTickHandler {
         }
 
         if (!blockState.canSurvive(level, blockPos)) {
-            if (serverBuildList.retryList.contains(blockPos))
-                return; //Don't retry if this is already retried
-            statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
-            serverBuildList.retryList.add(blockPos); //Only retry once!
+            //statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
+            serverBuildList.retryList.computeIfAbsent(blockPos, k -> new RetryEntry(statePos));
+            serverBuildList.retryList.computeIfPresent(blockPos, (k, v) -> {
+                v.count++;
+                if (v.count > 1)
+                    return null;
+                return v;
+            });
+
+            LOGGER.warn("[BG2] Block {} at {} failed canSurvive, retry {}", blockState.getBlock().getName(), blockPos, serverBuildList.retryList.get(blockPos) == null ? "exceeded" : serverBuildList.retryList.get(blockPos).count);
+            
             return;
         }
+        if (serverBuildList.retryList.get)
 
         if (!level.getBlockState(blockPos).canBeReplaced()) return; //Return without placing the block
 
@@ -244,13 +290,13 @@ public class ServerTickHandler {
             }
         }
 
-        if (!blockState.canSurvive(level, blockPos)) {
-            if (serverBuildList.retryList.contains(blockPos))
-                return; //Don't retry if this is already retried
-            statePosList.add(statePos);
-            serverBuildList.retryList.add(blockPos); //Only retry once!
-            return;
-        }
+        // if (!blockState.canSurvive(level, blockPos)) {
+        //     if (serverBuildList.retryList.contains(blockPos))
+        //         return; //Don't retry if this is already retried
+        //     statePosList.add(statePos);
+        //     serverBuildList.retryList.add(blockPos); //Only retry once!
+        //     return;
+        // }
 
         List<ItemStack> neededItems = new ArrayList<>();
         if (blockState.getFluidState().isEmpty()) { //Check for Items

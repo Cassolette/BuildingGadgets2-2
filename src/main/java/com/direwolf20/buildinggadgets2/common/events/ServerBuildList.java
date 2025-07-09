@@ -3,6 +3,7 @@ package com.direwolf20.buildinggadgets2.common.events;
 import com.direwolf20.buildinggadgets2.util.DimBlockPos;
 import com.direwolf20.buildinggadgets2.util.datatypes.StatePos;
 import com.direwolf20.buildinggadgets2.util.datatypes.TagPos;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -10,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.UUID;
 
@@ -20,6 +22,15 @@ public class ServerBuildList {
         DESTROY,
         UNDO_DESTROY,
         CUT
+    }
+
+    public static class RetryEntry {
+        public final StatePos statePos;
+        public int count = 0;
+
+        public RetryEntry(StatePos statePos) {
+            this.statePos = statePos;
+        }
     }
 
     public Level level;
@@ -35,7 +46,7 @@ public class ServerBuildList {
     public UUID buildUUID;
     public BuildType buildType;
     public boolean dropContents;
-    public ArrayList<BlockPos> retryList = new ArrayList<>();
+    public HashMap<BlockPos, RetryEntry> retryList = new HashMap<>();
     public BlockPos cutStart = BlockPos.ZERO;
     public BlockPos lookingAt = BlockPos.ZERO;
     public DimBlockPos boundPos;
