@@ -9,8 +9,8 @@ import com.direwolf20.buildinggadgets2.util.GadgetNBT;
 import com.direwolf20.buildinggadgets2.util.GadgetUtils;
 import com.direwolf20.buildinggadgets2.util.datatypes.StatePos;
 import com.direwolf20.buildinggadgets2.util.datatypes.TagPos;
+
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -77,6 +77,12 @@ public class ServerTickHandler {
         serverBuildList.originalSize = serverBuildList.statePosList.size();
     }
 
+    public static void setBuildFromCut(UUID buildUUID, boolean set) {
+        ServerBuildList serverBuildList = buildMap.get(buildUUID);
+        if (serverBuildList == null) return;
+        serverBuildList.isBuildFromCut = set;
+    }
+
     public static void addTEData(UUID buildUUID, ArrayList<TagPos> teData) {
         ServerBuildList serverBuildList = buildMap.get(buildUUID);
         if (serverBuildList == null) return;
@@ -113,7 +119,7 @@ public class ServerTickHandler {
                     continue;
                 }
                 Player player = event.getServer().getPlayerList().getPlayer(serverBuildList.playerUUID); //We check for the player - if they exist, they finished building - if not they logged off. Remove data from map only if finished building
-                if (serverBuildList.teData != null && !serverBuildList.buildType.equals(ServerBuildList.BuildType.CUT) && player != null) { //If we had teData this was from a cut-Paste, so remove the data from world data if we're not cutting
+                if (serverBuildList.isBuildFromCut && !serverBuildList.buildType.equals(ServerBuildList.BuildType.CUT) && player != null) { //This was from a cut-Paste, so remove the data from world data if we're not cutting
                     BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(serverBuildList.level.getServer()).overworld());
                     bg2Data.getCopyPasteList(GadgetNBT.getUUID(serverBuildList.gadget), true); //Remove the data
                     bg2Data.getTEMap(GadgetNBT.getUUID(serverBuildList.gadget)); //Remove the TE data
@@ -130,28 +136,7 @@ public class ServerTickHandler {
 
         ArrayList<StatePos> statePosList = serverBuildList.statePosList;
 
-        if (statePosList.isEmpty()) {
-            if (!serverBuildList.retryList.isEmpty()) { //We retry the blocks that initially failed canSurvive checks after all other blocks have been placed
-                for (HashMap.Entry<BlockPos, StatePos> entry : serverBuildList.retryList.entrySet()) {
-                    BlockPos blockPos = entry.getKey();
-                    StatePos statePos = entry.getValue();
-                    // for each adjacent block, check if any are RenderBlockBE
-                    boolean hasAdjacentRenderBlock = false;
-                    for (Direction direction : Direction.values()) {
-                        BlockPos adjacentPos = blockPos.relative(direction);
-                        LOGGER.debug("[BG2] Adj block at {}: {}", adjacentPos, level.getBlockState(adjacentPos).getBlock().getName());
-                        if (level.getBlockEntity(adjacentPos) instanceof RenderBlockBE) {
-                            hasAdjacentRenderBlock = true;
-                            break;
-                        }
-                    }
-                    // Retry when none of the adjacent blocks are RenderBlockBE (i.e. has already conveerted to the real block state)
-                    if (!hasAdjacentRenderBlock) {
-                        statePosList.add(statePos);
-                    }
-                }
-            }
-        }
+        serverBuildList.consumeRetryEntry(); //adds retry blocks into statePosList
 
         if (statePosList.isEmpty()) return;
         BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(level.getServer()).overworld());
@@ -179,16 +164,10 @@ public class ServerTickHandler {
         }
 
         if (!blockState.canSurvive(level, blockPos)) {
-            //statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
-            boolean alreadyRetried = serverBuildList.retryList.containsKey(blockPos);
-            if (alreadyRetried)
-                serverBuildList.retryList.remove(blockPos); //We tried :I
-            else
-                serverBuildList.retryList.put(blockPos, statePos);
-            LOGGER.warn("[BG2] Block {} at {} failed canSurvive (will {})", blockState.getBlock().getName(), blockPos, alreadyRetried ? "not retry" : "retry");
+            serverBuildList.markForRetry(blockPos, statePos); //Retry placing this after all other blocks are placed - in case torches/wallsigns/bamboo are placed before their supporting block for example
             return;
         }
-        serverBuildList.retryList.remove(blockPos); //No need to retry if the block canSurvive
+        serverBuildList.unMarkRetry(blockPos); //No need to retry if the block canSurvive
 
         if (!level.getBlockState(blockPos).canBeReplaced()) return; //Return without placing the block
 
@@ -234,21 +213,34 @@ public class ServerTickHandler {
 
         be.setRenderData(Blocks.AIR.defaultBlockState(), blockState, serverBuildList.renderType);
 
-        if (serverBuildList.teData == null && bg2Data.containsUndoList(serverBuildList.buildUUID)) { //Only track 'real undos' for non cut-pasted data
+        if (!serverBuildList.isBuildFromCut && bg2Data.containsUndoList(serverBuildList.buildUUID)) { //Only track 'real undos' for non cut-pasted data
             serverBuildList.addToBuiltList(new StatePos(blockState, blockPos));
             bg2Data.addToUndoList(serverBuildList.buildUUID, serverBuildList.actuallyBuildList, level);
+
+            if (serverBuildList.teData != null) {
+                CompoundTag compoundTag = serverBuildList.peekTagForPos(blockPos); //Obtain TE data without deleting it
+                if (!compoundTag.isEmpty()) {
+                    be.setBlockEntityData(compoundTag);
+                }
+            }
         }
 
-        if (serverBuildList.teData != null) { //If theres ANY TE data (even an empty list), we are doing a cut paste
+        if (serverBuildList.isBuildFromCut) { //We are doing a cut paste
             serverBuildList.addToBuiltList(new StatePos(blockState, statePos.pos)); //Add the non-adjust blockpos to the list for reference later
             bg2Data.addToUndoList(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.actuallyBuildList, level);
 
-            CompoundTag compoundTag = serverBuildList.getTagForPos(blockPos); //First check if theres TE data for this block
-            if (!compoundTag.isEmpty()) {
-                be.setBlockEntityData(compoundTag);
-                bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData); //If the server crashes mid-build you'll maybe dupe blocks but at least not dupe TE data? TODO Improve
+            if (serverBuildList.teData != null) {
+                CompoundTag compoundTag = serverBuildList.getTagForPos(blockPos); //First check if theres TE data for this block
+                if (!compoundTag.isEmpty()) {
+                    be.setBlockEntityData(compoundTag);
+                    bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData); //If the server crashes mid-build you'll maybe dupe blocks but at least not dupe TE data? TODO Improve
+                }
             }
         }
+
+        
+
+        LOGGER.debug("[BG2] Gadget UUID: {}, bg2data teData size: {}", GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData == null ? 0 : serverBuildList.teData.size());
     }
 
     public static void exchange(ServerBuildList serverBuildList, Player player) {
@@ -377,18 +369,21 @@ public class ServerTickHandler {
         if (drawSize != -1) //Only if changed from default
             be.drawSize = drawSize;
 
-        if (serverBuildList.teData == null && bg2Data.containsUndoList(serverBuildList.buildUUID)) {
+        if (!serverBuildList.isBuildFromCut && bg2Data.containsUndoList(serverBuildList.buildUUID)) {
             serverBuildList.addToBuiltList(new StatePos(oldState, blockPos));
             bg2Data.addToUndoList(serverBuildList.buildUUID, serverBuildList.actuallyBuildList, level);
         }
-        if (serverBuildList.teData != null) { //If theres ANY TE data (even an empty list), we are doing a cut paste
+        if (serverBuildList.isBuildFromCut) { //We are doing a cut paste
             serverBuildList.addToBuiltList(new StatePos(blockState, statePos.pos)); //Add the non-adjust blockpos to the list for reference later
             bg2Data.addToUndoList(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.actuallyBuildList, level);
+        }
 
+        if (serverBuildList.teData != null) {
             CompoundTag compoundTag = serverBuildList.getTagForPos(blockPos); //First check if theres TE data for this block
             if (!compoundTag.isEmpty()) {
                 be.setBlockEntityData(compoundTag);
-                bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData); //If the server crashes mid-build you'll maybe dupe blocks but at least not dupe TE data? TODO Improve
+                if (serverBuildList.isBuildFromCut)
+                    bg2Data.addToTEMap(GadgetNBT.getUUID(serverBuildList.gadget), serverBuildList.teData); //If the server crashes mid-build you'll maybe dupe blocks but at least not dupe TE data? TODO Improve
             }
         }
     }

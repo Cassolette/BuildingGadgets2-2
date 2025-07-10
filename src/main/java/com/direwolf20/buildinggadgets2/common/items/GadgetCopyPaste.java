@@ -1,6 +1,7 @@
 package com.direwolf20.buildinggadgets2.common.items;
 
 import com.direwolf20.buildinggadgets2.api.gadgets.GadgetTarget;
+import com.direwolf20.buildinggadgets2.common.events.ServerTickHandler;
 import com.direwolf20.buildinggadgets2.common.worlddata.BG2Data;
 import com.direwolf20.buildinggadgets2.setup.Config;
 import com.direwolf20.buildinggadgets2.util.BuildingUtils;
@@ -23,6 +24,10 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nullable;
+
+import org.jline.utils.Log;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -82,11 +87,14 @@ public class GadgetCopyPaste extends BaseGadget {
             ArrayList<StatePos> buildList = bg2Data.getCopyPasteList(uuid, false);
             UUID buildUUID;
             boolean replace = GadgetNBT.getPasteReplace(gadget);
+            //buildUUID = BuildingUtils.buildWithTileData(context.level(), context.player(), buildList, getHitPos(context).above().offset(GadgetNBT.getRelativePaste(gadget)), bg2Data.peekTEMap(uuid), gadget, true);
             if (!replace)
                 buildUUID = BuildingUtils.build(context.level(), context.player(), buildList, getHitPos(context).above().offset(GadgetNBT.getRelativePaste(gadget)), gadget, true);
             else
                 buildUUID = BuildingUtils.exchange(context.level(), context.player(), buildList, getHitPos(context).above().offset(GadgetNBT.getRelativePaste(gadget)), gadget, true, false);
 
+            LoggerFactory.getLogger(GadgetCopyPaste.class).info("[BG2]: Pasting for Gadget UUID: {}, Build UUID: {}, TE Map size: {}", uuid, buildUUID, bg2Data.peekTEMap(uuid).size());
+            ServerTickHandler.addTEData(buildUUID, bg2Data.peekTEMap(uuid));
             GadgetUtils.addToUndoList(context.level(), gadget, new ArrayList<>(), buildUUID);
             //GadgetNBT.clearAnchorPos(gadget);
             return InteractionResultHolder.success(gadget);
@@ -123,7 +131,9 @@ public class GadgetCopyPaste extends BaseGadget {
         GadgetNBT.setCopyUUID(gadget); //This UUID will be used to determine if the copy/paste we are rendering from the cache is old or not.
         BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(context.player().level().getServer()).overworld());
         bg2Data.addToCopyPaste(uuid, buildList);
+        bg2Data.addToTEMap(uuid, new Copy().collectTEs(context.hitResult().getDirection(), context.player(), context.pos(), Blocks.AIR.defaultBlockState())); //Collect sign texts
         context.player().displayClientMessage(Component.translatable("buildinggadgets2.messages.copyblocks", buildList.size()), true);
+        LoggerFactory.getLogger(GadgetCopyPaste.class).info("[BG2]: Copying for Gadget UUID: {}, TE Map size: {}", uuid, bg2Data.peekTEMap(uuid).size());
     }
 
     /**
