@@ -1,6 +1,7 @@
 package com.direwolf20.buildinggadgets2.common.items;
 
 import com.direwolf20.buildinggadgets2.api.gadgets.GadgetTarget;
+import com.direwolf20.buildinggadgets2.common.events.ServerTickHandler;
 import com.direwolf20.buildinggadgets2.common.worlddata.BG2Data;
 import com.direwolf20.buildinggadgets2.setup.Config;
 import com.direwolf20.buildinggadgets2.util.BuildingUtils;
@@ -87,6 +88,7 @@ public class GadgetCopyPaste extends BaseGadget {
             else
                 buildUUID = BuildingUtils.exchange(context.level(), context.player(), buildList, getHitPos(context).above().offset(GadgetNBT.getRelativePaste(gadget)), gadget, true, false);
 
+            ServerTickHandler.addTEData(buildUUID, bg2Data.peekTEMap(uuid));
             GadgetUtils.addToUndoList(context.level(), gadget, new ArrayList<>(), buildUUID);
             //GadgetNBT.clearAnchorPos(gadget);
             return InteractionResultHolder.success(gadget);
@@ -123,6 +125,7 @@ public class GadgetCopyPaste extends BaseGadget {
         GadgetNBT.setCopyUUID(gadget); //This UUID will be used to determine if the copy/paste we are rendering from the cache is old or not.
         BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(context.player().level().getServer()).overworld());
         bg2Data.addToCopyPaste(uuid, buildList);
+        bg2Data.addToTEMap(uuid, new Copy().collectTEs(context.hitResult().getDirection(), context.player(), context.pos(), Blocks.AIR.defaultBlockState())); //Collect whitelisted TE data
         context.player().displayClientMessage(Component.translatable("buildinggadgets2.messages.copyblocks", buildList.size()), true);
     }
 

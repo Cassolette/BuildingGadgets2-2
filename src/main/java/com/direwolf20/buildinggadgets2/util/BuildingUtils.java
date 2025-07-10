@@ -584,6 +584,7 @@ public class BuildingUtils {
         else
             buildUUID = BuildingUtils.exchange(level, player, blockPosList, lookingAt, gadget, false, false);
 
+        ServerTickHandler.setBuildFromCut(buildUUID, true); //Undos are handled differently
         ServerTickHandler.addTEData(buildUUID, teData);
         BG2Data bg2Data = BG2Data.get(Objects.requireNonNull(level.getServer()).overworld());
         if (!bg2Data.containsUndoList(GadgetNBT.getUUID(gadget))) //Only if theres not already an undo list for this gadget, otherwise it'll clear it (Duh dire)

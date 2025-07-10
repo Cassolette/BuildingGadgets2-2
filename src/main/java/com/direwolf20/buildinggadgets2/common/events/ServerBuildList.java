@@ -40,6 +40,7 @@ public class ServerBuildList {
     public BlockPos lookingAt = BlockPos.ZERO;
     public DimBlockPos boundPos;
     public int direction;
+    public boolean isBuildFromCut = false;
 
     public ServerBuildList(Level level, ArrayList<StatePos> statePosList, byte renderType, UUID playerUUID, boolean needItems, boolean returnItems, UUID buildUUID, ItemStack gadget, BuildType buildType, boolean dropContents, BlockPos lookingAt, DimBlockPos boundPos, int direction) {
         this.level = level;
@@ -71,7 +72,7 @@ public class ServerBuildList {
         }
     }
 
-    public CompoundTag getTagForPos(BlockPos pos) {
+    private CompoundTag getTagForPos(BlockPos pos, boolean peek) {
         CompoundTag compoundTag = new CompoundTag();
         if (teData == null || teData.isEmpty()) return compoundTag;
         BlockPos blockPos = pos.subtract(lookingAt);
@@ -80,11 +81,20 @@ public class ServerBuildList {
             TagPos data = iterator.next();
             if (data.pos.equals(blockPos)) {
                 compoundTag = data.tag;
-                iterator.remove();
+                if (!peek)
+                    iterator.remove();
                 break;
             }
         }
         return compoundTag;
+    }
+
+    public CompoundTag getTagForPos(BlockPos pos) {
+        return getTagForPos(pos, false);
+    }
+
+    public CompoundTag peekTagForPos(BlockPos pos) {
+        return getTagForPos(pos, true);
     }
 
     public Direction getDirection() {
