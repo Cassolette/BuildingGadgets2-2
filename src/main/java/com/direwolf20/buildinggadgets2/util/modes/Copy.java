@@ -86,7 +86,8 @@ public class Copy extends BaseMode {
     }
 
     /**
-     * Collects whitelisted block entity data allowed by Copy gadget, such as sign texts.
+     * Collects whitelisted block entity data allowed by Copy gadget, such as sign NBTs/texts.
+     * In Creative mode, all block entity data are collected.
      */
     public ArrayList<TagPos> collectTEs(Direction hitSide, Player player, BlockPos start, BlockState state) {
         ArrayList<TagPos> teData = new ArrayList<>();
@@ -107,7 +108,10 @@ public class Copy extends BaseMode {
             BlockState blockState = level.getBlockState(pos);
             if (GadgetUtils.isValidBlockState(blockState, level, pos) && !(blockState.getBlock() instanceof RenderBlock)) {
                 BlockEntity blockEntity = level.getBlockEntity(pos);
-                if (blockEntity != null && blockState.is(BlockTags.SIGNS)) { // Signs are valid to copy
+                if (blockEntity != null) {
+                    if (!player.isCreative() && !blockState.is(BlockTags.SIGNS)) { // In survival, only signs are valid to copy
+                        return;
+                    }
                     CompoundTag blockTag = blockEntity.saveWithFullMetadata();
                     TagPos tagPos = new TagPos(blockTag, pos.subtract(copyStart));
                     teData.add(tagPos);
