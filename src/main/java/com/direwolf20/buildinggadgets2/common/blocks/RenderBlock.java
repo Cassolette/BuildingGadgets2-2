@@ -19,7 +19,8 @@ public class RenderBlock extends Block implements EntityBlock {
         super(Block.Properties.of()
                 .strength(20f)
                 .dynamicShape()
-                .noOcclusion());
+                .noOcclusion()
+                .forceSolidOn());
     }
 
     @Nullable
