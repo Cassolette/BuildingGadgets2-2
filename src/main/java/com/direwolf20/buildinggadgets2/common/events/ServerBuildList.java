@@ -184,16 +184,16 @@ public class ServerBuildList {
                         }
 
                         // Retry when:
+                        // - previous consumption has success
                         // - none of the adjacent blocks are RenderBlockBE (i.e. has already conveerted to the real block state)
                         // - and the adjacent block states have changed
                         if (!hasAdjacentRenderBlock) {
                             // Increment retry count whenever we attempt to match all adjacent blocks 
                             retryEntry.retryCount++;
-                            int maxRetries = this.highestRetryCount; // TODO rmv
-                            if (retryEntry.retryCount > maxRetries) {
-                                LOGGER.warn("[BG2] Block {} Exceeded max retries: {}", blockPos, retryEntry.retryCount);
-                                //iterator.remove();
-                                //continue;
+                            if (retryEntry.retryCount > 1000) { // shouldn't get here
+                                LOGGER.error("[BG2] Block {} Exceeded max retries: {}", blockPos, retryEntry.retryCount);
+                                iterator.remove();
+                                continue;
                             }
                             if (hasAdjacentChanged) {
                                 this.statePosList.add(statePos);
