@@ -35,7 +35,6 @@ public class ServerBuildList {
     public UUID buildUUID;
     public BuildType buildType;
     public boolean dropContents;
-    public ArrayList<BlockPos> retryList = new ArrayList<>();
     public BlockPos cutStart = BlockPos.ZERO;
     public BlockPos lookingAt = BlockPos.ZERO;
     public DimBlockPos boundPos;

@@ -147,14 +147,6 @@ public class ServerTickHandler {
             }
         }
 
-        if (!blockState.canSurvive(level, blockPos)) {
-            if (serverBuildList.retryList.contains(blockPos))
-                return; //Don't retry if this is already retried
-            statePosList.add(statePos); //Retry placing this after all other blocks are placed - in case torches are placed before their supporting block for example
-            serverBuildList.retryList.add(blockPos); //Only retry once!
-            return;
-        }
-
         if (!level.getBlockState(blockPos).canBeReplaced()) return; //Return without placing the block
 
         List<ItemStack> neededItems = GadgetUtils.getDropsForBlockState((ServerLevel) level, blockPos, blockState, player);
@@ -257,14 +249,6 @@ public class ServerTickHandler {
                 boolean canDestContainFluid = !fluid.getFluidType().isVaporizedOnPlacement(level, blockPos, fluidStack);
                 if (!canDestContainFluid) return; //Skip -- This is for like, water in the nether and stuff
             }
-        }
-
-        if (!blockState.canSurvive(level, blockPos)) {
-            if (serverBuildList.retryList.contains(blockPos))
-                return; //Don't retry if this is already retried
-            statePosList.add(statePos);
-            serverBuildList.retryList.add(blockPos); //Only retry once!
-            return;
         }
 
         List<ItemStack> neededItems = new ArrayList<>();
