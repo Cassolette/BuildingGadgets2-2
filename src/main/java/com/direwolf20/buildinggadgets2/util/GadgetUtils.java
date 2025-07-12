@@ -42,8 +42,8 @@ public class GadgetUtils {
     private static final ImmutableList<Property<?>> DENY_PROPERTIES = ImmutableList.of(
             BlockStateProperties.AGE_1, BlockStateProperties.AGE_2, BlockStateProperties.AGE_3, BlockStateProperties.AGE_4,
             BlockStateProperties.AGE_5, BlockStateProperties.AGE_7, BlockStateProperties.AGE_15, BlockStateProperties.AGE_25,
-            DoublePlantBlock.HALF, BlockStateProperties.WATERLOGGED, BlockStateProperties.LIT, BlockStateProperties.HAS_RECORD,
-            BlockStateProperties.HAS_BOOK, BlockStateProperties.OPEN, BlockStateProperties.STAGE
+            DoublePlantBlock.HALF, BlockStateProperties.LIT, BlockStateProperties.HAS_RECORD, BlockStateProperties.HAS_BOOK,
+            BlockStateProperties.OPEN, BlockStateProperties.STAGE
     );
 
     public static boolean isValidBlockState(BlockState blockState, Level level, BlockPos blockPos) {
