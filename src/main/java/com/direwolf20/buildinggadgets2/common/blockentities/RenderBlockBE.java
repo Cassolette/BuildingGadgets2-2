@@ -163,16 +163,6 @@ public class RenderBlockBE extends BlockEntity {
             level.setBlockAndUpdate(this.getBlockPos(), Blocks.AIR.defaultBlockState());
             return;
         }
-        if (!realBlock.canSurvive(level, getBlockPos())) {
-            List<ItemStack> drops = GadgetUtils.getDropsForBlockState((ServerLevel) level, getBlockPos(), realBlock, null);
-            for (ItemStack returnedItem : drops) {
-                ItemEntity itementity = new ItemEntity(level, getBlockPos().getX(), getBlockPos().getY(), getBlockPos().getZ(), returnedItem);
-                itementity.setPickUpDelay(40);
-                level.addFreshEntity(itementity);
-                level.setBlockAndUpdate(this.getBlockPos(), Blocks.AIR.defaultBlockState());
-                return;
-            }
-        }
         BlockState adjustedState = Block.updateFromNeighbourShapes(realBlock, level, getBlockPos()); //Ensure double chests are placed as single chests if only 1 chest available in copy/paste, for example, or fixes fences
         level.setBlockAndUpdate(this.getBlockPos(), adjustedState);
         if (blockEntityData != null) {
